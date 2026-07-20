@@ -19,18 +19,23 @@ if ($isAdmin) {
         $ConfigData = Get-Content $ConfigFile -Raw | ConvertFrom-Json
         $LocalModulesFolder = Join-Path $LocalTempDir "modules"
         
-        # Load modul secara lokal (karena di sesi admin tidak bisa akses jaringan)
+        # Load modul secara lokal di memori (bypasses execution policy)
         $ModuleFiles = Get-ChildItem -Path $LocalModulesFolder -Filter "*.ps1" | Sort-Object Name
         $Modules = @()
         foreach ($file in $ModuleFiles) {
             try {
-                $module = . $file.FullName
+                $moduleContent = Get-Content $file.FullName -Raw
+                $module = iex $moduleContent
                 if ($null -ne $module) {
                     $module | Add-Member -MemberType NoteProperty -Name "ConfigParams" -Value $null -Force
                     $module | Add-Member -MemberType NoteProperty -Name "FileName" -Value $file.Name -Force
                     $Modules += $module
                 }
-            } catch {}
+            } catch {
+                Write-Host "[WARNING] Gagal memuat modul lokal $($file.Name):" -ForegroundColor Yellow
+                Write-Host "Detail: $_" -ForegroundColor Red
+                Start-Sleep -Seconds 1
+            }
         }
         
         Write-Host "===========================================" -ForegroundColor Cyan
@@ -92,12 +97,13 @@ if (Test-Path $LocalTempDir) {
 }
 
 while ($true) {
-    # Muat modul secara dinamis dari folder jaringan SMB
+    # Muat modul secara dinamis dari folder jaringan SMB ke memori (bypasses execution policy)
     $ModuleFiles = Get-ChildItem -Path $ModulesFolder -Filter "*.ps1" | Sort-Object Name
     $Modules = @()
     foreach ($file in $ModuleFiles) {
         try {
-            $module = . $file.FullName
+            $moduleContent = Get-Content $file.FullName -Raw
+            $module = iex $moduleContent
             if ($null -ne $module) {
                 $module | Add-Member -MemberType NoteProperty -Name "Id" -Value ($Modules.Count + 1) -Force
                 $module | Add-Member -MemberType NoteProperty -Name "ConfigParams" -Value $null -Force
@@ -105,7 +111,11 @@ while ($true) {
                 $module | Add-Member -MemberType NoteProperty -Name "FullPath" -Value $file.FullName -Force
                 $Modules += $module
             }
-        } catch {}
+        } catch {
+            Write-Host "[WARNING] Gagal memuat file modul jaringan $($file.Name):" -ForegroundColor Yellow
+            Write-Host "Detail: $_" -ForegroundColor Red
+            Start-Sleep -Seconds 1
+        }
     }
 
     Clear-Host
