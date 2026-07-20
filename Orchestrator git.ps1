@@ -256,7 +256,7 @@ while ($true) {
     # Simpan konfigurasi parameter ke file JSON
     $exportData = @()
     foreach ($m in $configuredModules) {
-        $exportData += @@{
+        $exportData += @{
             "FileName"     = $m.FileName
             "ConfigParams" = $m.ConfigParams
         }
