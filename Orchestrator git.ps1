@@ -22,7 +22,7 @@ if (-not $isAdmin) {
 # 2. DEFINISI FOLDER SMB JARINGAN & TEMP
 # ==========================================
 # UBAH PATH DI BAWAH INI SESUAI DENGAN LOKASI FOLDER MODULES DI SERVER SMB KANTOR:
-$ModulesFolder = "\\192.168.x.x\IT_Share\Scripts\Modules"
+$ModulesFolder = "\\10.37.10.116\j4\public\allsystem\hnf\j4deploy\Modules"
 $LocalTempDir = "$env:Public\PostInstallTemp"
 
 if (-not (Test-Path $ModulesFolder)) {
