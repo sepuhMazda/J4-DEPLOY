@@ -82,7 +82,7 @@ if ($isAdmin) {
 # ==========================================
 
 # Tentukan path SMB modules jaringan kantor Anda
-$ModulesFolder = "\\10.37.10.116\j4\public\allsystem\hnf\j4deploy\Modules"
+$ModulesFolder = "\\10.37.11.222\j4\hnf\j4deploy\Modul"
 
 if (-not (Test-Path $ModulesFolder)) {
     Write-Host "[ERROR] Folder modul jaringan tidak ditemukan: $ModulesFolder" -ForegroundColor Red
