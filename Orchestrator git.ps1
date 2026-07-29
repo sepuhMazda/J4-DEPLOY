@@ -19,17 +19,10 @@ if ($isAdmin) {
         $ConfigData = Get-Content $ConfigFile -Raw | ConvertFrom-Json
         $LocalModulesFolder = Join-Path $LocalTempDir "modules"
         
-        # Load modul secara lokal di memori
+        # Load modul secara lokal di memori (bypasses execution policy)
         $ModuleFiles = Get-ChildItem -Path $LocalModulesFolder -Filter "*.ps1" | Sort-Object Name
         $Modules = @()
-        $totalFiles = $ModuleFiles.Count
-        $fileIndex = 0
-
         foreach ($file in $ModuleFiles) {
-            $fileIndex++
-            $percent = [int](<($fileIndex - 1>) / $totalFiles * 100)
-            Write-Progress -Id 1 -Activity "Memuat Modul Lokal" -Status "Membaca $($file.Name) ($fileIndex/$totalFiles)" -PercentComplete $percent
-            
             try {
                 $moduleContent = Get-Content $file.FullName -Raw
                 $module = iex $moduleContent
@@ -44,27 +37,17 @@ if ($isAdmin) {
                 Start-Sleep -Seconds 1
             }
         }
-        # Tutup progress bar memuat modul
-        Write-Progress -Id 1 -Activity "Memuat Modul Lokal" -Completed
         
         Write-Host "===========================================" -ForegroundColor Cyan
         Write-Host "      EXECUTING INSTALLATION TASKS         " -ForegroundColor Cyan
         Write-Host "===========================================" -ForegroundColor Cyan
         Write-Host ""
         
-        $totalModules = $ConfigData.Count
-        $currentIndex = 0
-
         foreach ($moduleData in $ConfigData) {
-            $currentIndex++
             $matchingModule = $Modules | Where-Object { $_.FileName -eq $moduleData.FileName }
             if ($null -ne $matchingModule) {
                 try {
-                    # Tampilkan progress instalasi
-                    $percent = [int](<($currentIndex - 1>) / $totalModules * 100)
-                    Write-Progress -Id 2 -Activity "Menginstal Driver & Software" -Status "Memproses ($currentIndex/$totalModules): $($matchingModule.Name)" -PercentComplete $percent
-                    
-                    Write-Host ">>> MENGEKSEKUSI ($currentIndex/$totalModules): $($matchingModule.Name) <<<" -ForegroundColor Green
+                    Write-Host ">>> MENGEKSEKUSI: $($matchingModule.Name) <<<" -ForegroundColor Green
                     # Jalankan block script Install milik modul
                     & $matchingModule.Install $moduleData.ConfigParams $LocalTempDir
                 }
@@ -75,10 +58,6 @@ if ($isAdmin) {
                 Write-Host ""
             }
         }
-        # Selesai, bersihkan progress bar instalasi
-        Write-Progress -Id 2 -Activity "Menginstal Driver & Software" -Status "Semua proses selesai!" -PercentComplete 100
-        Start-Sleep -Seconds 1
-        Write-Progress -Id 2 -Activity "Menginstal Driver & Software" -Completed
         
         # Bersihkan folder lokal temp
         if (Test-Path $LocalTempDir) {
@@ -102,6 +81,8 @@ if ($isAdmin) {
 # SESI STANDARD USER (KONFIGURASI & PRE-COPY DARI JARINGAN)
 # ==========================================
 
+# Tentukan path SMB modules jaringan kantor Anda
+#$ModulesFolder = "\\10.37.10.116\j4\public\allsystem\hnf\j4deploy\Modules"
 $ModulesFolder = "\\10.37.11.222\hnf\j4deploy\Modules"
 
 if (-not (Test-Path $ModulesFolder)) {
@@ -117,17 +98,10 @@ if (Test-Path $LocalTempDir) {
 }
 
 while ($true) {
-    # Muat modul secara dinamis dari folder jaringan SMB ke memori
+    # Muat modul secara dinamis dari folder jaringan SMB ke memori (bypasses execution policy)
     $ModuleFiles = Get-ChildItem -Path $ModulesFolder -Filter "*.ps1" | Sort-Object Name
     $Modules = @()
-    $totalFiles = $ModuleFiles.Count
-    $fileIndex = 0
-
     foreach ($file in $ModuleFiles) {
-        $fileIndex++
-        $percent = [int](<($fileIndex - 1>) / $totalFiles * 100)
-        Write-Progress -Id 1 -Activity "Memuat Modul dari Jaringan" -Status "Membaca $($file.Name) ($fileIndex/$totalFiles)" -PercentComplete $percent
-        
         try {
             $moduleContent = Get-Content $file.FullName -Raw
             $module = iex $moduleContent
@@ -144,7 +118,6 @@ while ($true) {
             Start-Sleep -Seconds 1
         }
     }
-    Write-Progress -Id 1 -Activity "Memuat Modul dari Jaringan" -Completed
 
     Clear-Host
     Write-Host "==================================================" -ForegroundColor Cyan
@@ -265,7 +238,7 @@ while ($true) {
         New-Item -ItemType Directory -Path $LocalTempDir -Force | Out-Null
     }
     
-    # Salin file modul .ps1 terpilih ke lokal temp
+    # Salin file modul .ps1 terpilih ke lokal temp agar bisa diakses saat elevated
     $LocalModulesFolder = Join-Path $LocalTempDir "modules"
     New-Item -ItemType Directory -Path $LocalModulesFolder -Force | Out-Null
     foreach ($m in $configuredModules) {
@@ -273,18 +246,9 @@ while ($true) {
     }
     
     # Jalankan proses pre-copy untuk file driver jaringan
-    Write-Host "[INFO] Memulai proses pre-copy driver dari jaringan..." -ForegroundColor Yellow
     $allCopiesSuccess = $true
-    $totalPreCopy = $configuredModules.Count
-    $preCopyIndex = 0
-
     foreach ($m in $configuredModules) {
-        $preCopyIndex++
-        $percent = [int](<($preCopyIndex - 1>) / $totalPreCopy * 100)
-        Write-Progress -Id 3 -Activity "Menyalin File Driver dari Jaringan" -Status "Memproses ($preCopyIndex/$totalPreCopy): $($m.Name)" -PercentComplete $percent
-
         if ($null -ne $m.PreCopy) {
-            Write-Host "[PreCopy] Menyalin driver untuk $($m.Name)..." -ForegroundColor Cyan
             $success = & $m.PreCopy $LocalTempDir
             if (-not $success) {
                 $allCopiesSuccess = $false
@@ -292,8 +256,6 @@ while ($true) {
             }
         }
     }
-    # Selesai, bersihkan progress bar Pre-Copy
-    Write-Progress -Id 3 -Activity "Menyalin File Driver dari Jaringan" -Completed
     
     if (-not $allCopiesSuccess) {
         Write-Host "`n[ERROR] Gagal menyalin file driver dari jaringan. Instalasi dibatalkan." -ForegroundColor Red
@@ -312,7 +274,7 @@ while ($true) {
     }
     $exportData | ConvertTo-Json -Depth 5 | Out-File $ConfigFile -Encoding utf8
     
-    # Salin script Orchestrator itu sendiri (script ini) ke lokal
+    # Salin script Orchestrator itu sendiri (script ini) ke lokal agar bisa dijalankan secara elevated
     $LocalScriptPath = Join-Path $LocalTempDir "Orchestrator.ps1"
     Write-Host "[INFO] Mengunduh script utama untuk sesi Administrator..." -ForegroundColor Yellow
     Invoke-RestMethod -Uri $RemoteUrl -OutFile $LocalScriptPath
