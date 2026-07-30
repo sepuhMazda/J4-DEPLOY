@@ -14,69 +14,62 @@ $RemoteUrl = "https://j4deploy.jenaela.my.id"
 # ==========================================
 # SESI ELEVATED ADMINISTRATOR (EKSEKUSI INSTALASI LOKAL)
 # ==========================================
-if ($isAdmin) {
-    if (Test-Path $ConfigFile) {
-        $ConfigData = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-        $LocalModulesFolder = Join-Path $LocalTempDir "modules"
-        
-        # Load modul secara lokal di memori (bypasses execution policy)
-        $ModuleFiles = Get-ChildItem -Path $LocalModulesFolder -Filter "*.ps1" | Sort-Object Name
-        $Modules = @()
-        foreach ($file in $ModuleFiles) {
-            try {
-                $moduleContent = Get-Content $file.FullName -Raw
-                $module = iex $moduleContent
-                if ($null -ne $module) {
-                    $module | Add-Member -MemberType NoteProperty -Name "ConfigParams" -Value $null -Force
-                    $module | Add-Member -MemberType NoteProperty -Name "FileName" -Value $file.Name -Force
-                    $Modules += $module
-                }
-            } catch {
-                Write-Host "[WARNING] Gagal memuat modul lokal $($file.Name):" -ForegroundColor Yellow
-                Write-Host "Detail: $_" -ForegroundColor Red
-                Start-Sleep -Seconds 1
+if ($isAdmin -and (Test-Path $ConfigFile)) {
+    $ConfigData = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+    $LocalModulesFolder = Join-Path $LocalTempDir "modules"
+    
+    # Load modul secara lokal di memori (bypasses execution policy)
+    $ModuleFiles = Get-ChildItem -Path $LocalModulesFolder -Filter "*.ps1" | Sort-Object Name
+    $Modules = @()
+    foreach ($file in $ModuleFiles) {
+        try {
+            $moduleContent = Get-Content $file.FullName -Raw
+            $module = iex $moduleContent
+            if ($null -ne $module) {
+                $module | Add-Member -MemberType NoteProperty -Name "ConfigParams" -Value $null -Force
+                $module | Add-Member -MemberType NoteProperty -Name "FileName" -Value $file.Name -Force
+                $Modules += $module
             }
+        } catch {
+            Write-Host "[WARNING] Gagal memuat modul lokal $($file.Name):" -ForegroundColor Yellow
+            Write-Host "Detail: $_" -ForegroundColor Red
+            Start-Sleep -Seconds 1
         }
-        
-        Write-Host "===========================================" -ForegroundColor Cyan
-        Write-Host "      EXECUTING INSTALLATION TASKS         " -ForegroundColor Cyan
-        Write-Host "===========================================" -ForegroundColor Cyan
-        Write-Host ""
-        
-        foreach ($moduleData in $ConfigData) {
-            $matchingModule = $Modules | Where-Object { $_.FileName -eq $moduleData.FileName }
-            if ($null -ne $matchingModule) {
-                try {
-                    Write-Host ">>> MENGEKSEKUSI: $($matchingModule.Name) <<<" -ForegroundColor Green
-                    # Jalankan block script Install milik modul
-                    & $matchingModule.Install $moduleData.ConfigParams $LocalTempDir
-                }
-                catch {
-                    Write-Host "`n[ERROR] Kegagalan instalasi pada modul: $($matchingModule.Name)" -ForegroundColor Red
-                    Write-Host "Detail: $_" -ForegroundColor Red
-                }
-                Write-Host ""
-            }
-        }
-        
-        # Bersihkan folder lokal temp
-        if (Test-Path $LocalTempDir) {
-            Write-Host "[INFO] Membersihkan file instalasi lokal..." -ForegroundColor Yellow
-            Remove-Item -Path $LocalTempDir -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        
-        Write-Host "===========================================" -ForegroundColor Green
-        Write-Host "          ALL PROCESSES COMPLETED          " -ForegroundColor Green
-        Write-Host "===========================================" -ForegroundColor Green
-        Write-Host ""
-        Read-Host "Tekan Enter untuk menutup installer..."
-    } else {
-        Write-Host "[ERROR] Sesi Administrator dijalankan tanpa file konfigurasi lokal." -ForegroundColor Red
-        Read-Host "Tekan Enter untuk keluar..."
     }
+    
+    Write-Host "===========================================" -ForegroundColor Cyan
+    Write-Host "      EXECUTING INSTALLATION TASKS         " -ForegroundColor Cyan
+    Write-Host "===========================================" -ForegroundColor Cyan
+    Write-Host ""
+    
+    foreach ($moduleData in $ConfigData) {
+        $matchingModule = $Modules | Where-Object { $_.FileName -eq $moduleData.FileName }
+        if ($null -ne $matchingModule) {
+            try {
+                Write-Host ">>> MENGEKSEKUSI: $($matchingModule.Name) <<<" -ForegroundColor Green
+                & $matchingModule.Install $moduleData.ConfigParams $LocalTempDir
+            }
+            catch {
+                Write-Host "`n[ERROR] Kegagalan instalasi pada modul: $($matchingModule.Name)" -ForegroundColor Red
+                Write-Host "Detail: $_" -ForegroundColor Red
+            }
+            Write-Host ""
+        }
+    }
+    
+    # Bersihkan folder lokal temp
+    if (Test-Path $LocalTempDir) {
+        Write-Host "[INFO] Membersihkan file instalasi lokal..." -ForegroundColor Yellow
+        Remove-Item -Path $LocalTempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    
+    Write-Host "===========================================" -ForegroundColor Green
+    Write-Host "          ALL PROCESSES COMPLETED          " -ForegroundColor Green
+    Write-Host "===========================================" -ForegroundColor Green
+    Write-Host ""
+    Read-Host "Tekan Enter untuk menutup installer..."
     exit
 }
-
 # ==========================================
 # SESI STANDARD USER (KONFIGURASI & PRE-COPY DARI JARINGAN)
 # ==========================================
